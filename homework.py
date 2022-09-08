@@ -43,6 +43,7 @@ HOMEWORK_STATUSES = {
 
 
 def send_message(bot, message):
+    """Отправляем сообщение в телеграм чат."""
     try:
         bot.send_message(TELEGRAM_CHAT_ID, message)
         logger.info('Сообщение отправлено')
@@ -51,6 +52,7 @@ def send_message(bot, message):
 
 
 def get_api_answer(current_timestamp):
+    """Делаем запрос и получаем ответ от api яндекса."""
     timestamp = current_timestamp or int(time.time())
     params = {'from_date': timestamp}
 
@@ -71,6 +73,7 @@ def get_api_answer(current_timestamp):
 
 
 def check_response(response):
+    """Проверяем ответ API на корректность, возвращаем список работ."""
     homeworks = response['homeworks']
     if not isinstance(homeworks, list):
         raise TypeError
@@ -78,6 +81,7 @@ def check_response(response):
 
 
 def parse_status(homework):
+    """Извлекаем из информации о домашней работе её статус."""
     global HOMEWORK_STATUS_QUO
     homework_name = homework.get('homework_name')
     homework_status = homework.get('status')
@@ -91,6 +95,7 @@ def parse_status(homework):
 
 
 def check_tokens():
+    """Проверяем что все токены присвоены."""
     return (
         bool(PRACTICUM_TOKEN)
         and bool(TELEGRAM_TOKEN)
@@ -100,7 +105,6 @@ def check_tokens():
 
 def main():
     """Основная логика работы бота."""
-
     if not check_tokens():
         logger.critical('Отсутствуют обязательные переменные '
                         'окружения во время запуска бота')
