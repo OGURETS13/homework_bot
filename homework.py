@@ -4,10 +4,12 @@ import os
 import requests
 import sys
 import time
-
-from telegram import Bot
+from http import HTTPStatus
 
 from dotenv import load_dotenv
+from telegram import Bot
+
+from exceptions import EndpointException, MessageException, MainException
 
 
 load_dotenv()
@@ -22,8 +24,6 @@ HEADERS = {'Authorization': f'OAuth {PRACTICUM_TOKEN}'}
 
 PERIOD_DAYS = datetime.timedelta(days=60)
 TIMEDELTA_SECONDS = int(PERIOD_DAYS.total_seconds())
-
-HOMEWORK_STATUS_QUO = ''
 
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
@@ -47,42 +47,39 @@ def send_message(bot, message):
     try:
         bot.send_message(TELEGRAM_CHAT_ID, message)
         logger.info('Сообщение отправлено')
-    except Exception as error:
+    except MessageException as error:
         logger.error(f'Сбой при отправке сообщения в Telegram: {error}')
 
 
 def get_api_answer(current_timestamp):
     """Делаем запрос и получаем ответ от api яндекса."""
-    timestamp = current_timestamp or int(time.time())
+    timestamp = (current_timestamp or int(time.time())) - TIMEDELTA_SECONDS
     params = {'from_date': timestamp}
 
-    # try:
     response = requests.get(
         ENDPOINT,
         headers=HEADERS,
         params=params)
 
-    if response.status_code != 200:
+    if response.status_code != HTTPStatus.OK:
         logger.error('Эндпоинт недоступен')
-        raise Exception
+        raise EndpointException
     else:
         return response.json()
-
-    # except Exception:
-    #     logger.error('Сбой при запросе к эндпоинту')
 
 
 def check_response(response):
     """Проверяем ответ API на корректность, возвращаем список работ."""
     homeworks = response['homeworks']
     if not isinstance(homeworks, list):
-        raise TypeError
+        raise TypeError(
+            'Тип объекта homeworks не соответствует ожидаемому (list)'
+        )
     return homeworks
 
 
-def parse_status(homework):
+def parse_status(homework, HOMEWORK_STATUS_QUO):
     """Извлекаем из информации о домашней работе её статус."""
-    global HOMEWORK_STATUS_QUO
     homework_name = homework.get('homework_name')
     homework_status = homework.get('status')
 
@@ -90,17 +87,15 @@ def parse_status(homework):
         verdict = HOMEWORK_STATUSES[homework_status]
 
         HOMEWORK_STATUS_QUO = homework_status
-        return f'Изменился статус проверки работы "{homework_name}". {verdict}'
-    return 'Сегодня ничего не произошло'
+        return (
+            f'Изменился статус проверки работы "{homework_name}". {verdict}',
+            HOMEWORK_STATUS_QUO
+        )
 
 
 def check_tokens():
     """Проверяем что все токены присвоены."""
-    return (
-        bool(PRACTICUM_TOKEN)
-        and bool(TELEGRAM_TOKEN)
-        and bool(TELEGRAM_CHAT_ID)
-    )
+    return all([PRACTICUM_TOKEN, TELEGRAM_TOKEN, TELEGRAM_CHAT_ID]) is not None
 
 
 def main():
@@ -120,16 +115,21 @@ def main():
             response = get_api_answer(current_timestamp)
 
             homeworks = check_response(response)
+
             homework = homeworks[0]
 
-            message = parse_status(homework)
+            HOMEWORK_STATUS_QUO = ''
+
+            message, HOMEWORK_STATUS_QUO = parse_status(
+                homework, HOMEWORK_STATUS_QUO
+            )
             send_message(bot, message)
 
-            time.sleep(RETRY_TIME)
-
-        except Exception as error:
+        except MainException as error:
             message = f'Сбой в работе программы: {error}'
             send_message(bot, message)
+
+        finally:
             time.sleep(RETRY_TIME)
 
 
