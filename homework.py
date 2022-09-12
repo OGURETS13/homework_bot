@@ -18,6 +18,8 @@ PRACTICUM_TOKEN = os.getenv('PRACTICUM_TOKEN')
 TELEGRAM_TOKEN = os.getenv('TELEGRAM_TOKEN')
 TELEGRAM_CHAT_ID = os.getenv('TELEGRAM_CHAT_ID')
 
+HOMEWORK_STATUS_QUO = ''
+
 RETRY_TIME = 600
 ENDPOINT = 'https://practicum.yandex.ru/api/user_api/homework_statuses/'
 HEADERS = {'Authorization': f'OAuth {PRACTICUM_TOKEN}'}
@@ -53,7 +55,7 @@ def send_message(bot, message):
 
 def get_api_answer(current_timestamp):
     """Делаем запрос и получаем ответ от api яндекса."""
-    timestamp = (current_timestamp or int(time.time())) - TIMEDELTA_SECONDS
+    timestamp = (current_timestamp or int(time.time()))
     params = {'from_date': timestamp}
 
     response = requests.get(
@@ -78,24 +80,26 @@ def check_response(response):
     return homeworks
 
 
-def parse_status(homework, HOMEWORK_STATUS_QUO):
+def parse_status(homework):
     """Извлекаем из информации о домашней работе её статус."""
     homework_name = homework.get('homework_name')
     homework_status = homework.get('status')
 
-    if homework_status != HOMEWORK_STATUS_QUO:
-        verdict = HOMEWORK_STATUSES[homework_status]
+    verdict = HOMEWORK_STATUSES[homework_status]
 
-        HOMEWORK_STATUS_QUO = homework_status
-        return (
-            f'Изменился статус проверки работы "{homework_name}". {verdict}',
-            HOMEWORK_STATUS_QUO
-        )
+    return (
+        f'Изменился статус проверки работы "{homework_name}". {verdict}')
 
 
 def check_tokens():
     """Проверяем что все токены присвоены."""
-    return all([PRACTICUM_TOKEN, TELEGRAM_TOKEN, TELEGRAM_CHAT_ID]) is not None
+    return all(
+        i is not None for i in [
+            PRACTICUM_TOKEN,
+            TELEGRAM_TOKEN,
+            TELEGRAM_CHAT_ID
+        ]
+    )
 
 
 def main():
@@ -110,19 +114,16 @@ def main():
 
     while True:
         try:
-            current_timestamp = int(time.time())
 
             response = get_api_answer(current_timestamp)
+
+            current_timestamp = int(time.time())
 
             homeworks = check_response(response)
 
             homework = homeworks[0]
 
-            HOMEWORK_STATUS_QUO = ''
-
-            message, HOMEWORK_STATUS_QUO = parse_status(
-                homework, HOMEWORK_STATUS_QUO
-            )
+            message = parse_status(homework)
             send_message(bot, message)
 
         except MainException as error:
