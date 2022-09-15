@@ -1,4 +1,3 @@
-import datetime
 import logging
 import os
 import requests
@@ -8,8 +7,9 @@ from http import HTTPStatus
 
 from dotenv import load_dotenv
 from telegram import Bot
+import telegram
 
-from exceptions import EndpointException, MessageException, MainException
+from exceptions import EndpointException
 
 
 load_dotenv()
@@ -18,14 +18,9 @@ PRACTICUM_TOKEN = os.getenv('PRACTICUM_TOKEN')
 TELEGRAM_TOKEN = os.getenv('TELEGRAM_TOKEN')
 TELEGRAM_CHAT_ID = os.getenv('TELEGRAM_CHAT_ID')
 
-HOMEWORK_STATUS_QUO = ''
-
 RETRY_TIME = 600
 ENDPOINT = 'https://practicum.yandex.ru/api/user_api/homework_statuses/'
 HEADERS = {'Authorization': f'OAuth {PRACTICUM_TOKEN}'}
-
-PERIOD_DAYS = datetime.timedelta(days=60)
-TIMEDELTA_SECONDS = int(PERIOD_DAYS.total_seconds())
 
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
@@ -49,7 +44,7 @@ def send_message(bot, message):
     try:
         bot.send_message(TELEGRAM_CHAT_ID, message)
         logger.info('Сообщение отправлено')
-    except MessageException as error:
+    except telegram.error.TelegramError as error:
         logger.error(f'Сбой при отправке сообщения в Telegram: {error}')
 
 
@@ -87,19 +82,12 @@ def parse_status(homework):
 
     verdict = HOMEWORK_STATUSES[homework_status]
 
-    return (
-        f'Изменился статус проверки работы "{homework_name}". {verdict}')
+    return f'Изменился статус проверки работы "{homework_name}". {verdict}'
 
 
 def check_tokens():
     """Проверяем что все токены присвоены."""
-    return all(
-        i is not None for i in [
-            PRACTICUM_TOKEN,
-            TELEGRAM_TOKEN,
-            TELEGRAM_CHAT_ID
-        ]
-    )
+    return all([PRACTICUM_TOKEN, TELEGRAM_TOKEN, TELEGRAM_CHAT_ID])
 
 
 def main():
@@ -126,7 +114,7 @@ def main():
             message = parse_status(homework)
             send_message(bot, message)
 
-        except MainException as error:
+        except Exception as error:
             message = f'Сбой в работе программы: {error}'
             send_message(bot, message)
 
